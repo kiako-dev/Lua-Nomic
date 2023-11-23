@@ -351,6 +351,78 @@ end
 
 ## So what's left to do?
 
+# Testing the Limits
+
+## [Agora](https://agoranomic.com) and Tabled Actions
+
+## [Nomini](https://crowsworth.itch.io/nomini) and ???
+
+## [Nomyx](https://github.com/nomyx/Nomyx) and Event Based Architecture
+
+```lua
+Events = {}
+Events.hook = {
+  pre = setmetatable({}, {__mode = "k"}),
+  post = setmetatable({}, {__mode = "k"}),
+}
+local function pop_and_pack(...)
+  local t = table.pack(...)
+  local pop = t[1]
+  for i = 1, i <= t.n do
+    t[i] = t[i + 1]
+  end
+  t.n = t.n - 1
+  return pop, t
+end
+setmetatable(Events.hook, {
+  __call = function (self, fn)
+    self.pre[fn] = {}
+    self.post[fn] = {}
+    return setmetatable({}, {
+      __call = function (self2, ...)
+        local params = table.pack(...)
+        for mixin in pairs(self.pre[self2.raw]) do
+          local cancelled
+          cancelled, params = pop_and_pack(mixin(table.unpack(params, 1, params.n)))
+          if cancelled then return end
+        end
+        self2.raw(params)
+        for mixin in pairs(self.post[self2.raw]) do
+          local cancelled
+          cancelled, params = pop_and_pack(mixin(table.unpack(params, 1, params.n)))
+          if cancelled then return end
+        end
+      end,
+      __index = { raw = fn },
+      __newindex = function (t, k, v) end
+    })
+  end
+})
+
+function Events.add_mixin(hook, handler, pre_or_post)
+  if pre_or_post == "pre" then
+    Events.hook.pre[hook.raw][handler] = "pre-mixin enabled"
+  elseif pre_or_post == "post" then
+    Events.hook.post[hook.raw][handler] = "post-mixin enabled"
+  end
+end
+```
+
+Example usage:
+
+```lua
+fn = Events.hook(fn)
+Events.add_mixin(fn, pre_mixin, "pre")
+Events.add_mixin(fn, post_mixin, "post")
+fn(3)
+-- B: 3
+-- Because 3 < 5, we are cancelling the main call.
+fn(6)
+-- B: 6
+-- A: 3
+-- C: 3
+```
+
 # Appendix: The Full Codebase
 
 ```lua
