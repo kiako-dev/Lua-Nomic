@@ -401,9 +401,9 @@ setmetatable(Events.hook, {
 
 function Events.add_mixin(hook, handler, pre_or_post)
   if pre_or_post == "pre" then
-    Events.hook.pre[hook.raw][handler] = "pre-mixin enabled"
+    Events.hook.pre[hook.raw][handler] = true
   elseif pre_or_post == "post" then
-    Events.hook.post[hook.raw][handler] = "post-mixin enabled"
+    Events.hook.post[hook.raw][handler] = true
   end
 end
 ```
@@ -411,6 +411,22 @@ end
 Example usage:
 
 ```lua
+local function fn(x)
+  print("A: " .. x)
+end
+local function pre_mixin(x)
+  print("B: " .. x)
+  if x < 5 then
+    print("Because " .. x .. " < 5, we are cancelling the main call.")
+    return true, nil
+  end
+  return false, x - 3
+end
+local function post_mixin(x)
+  print("C: " .. x)
+  return false, x
+end
+
 fn = Events.hook(fn)
 Events.add_mixin(fn, pre_mixin, "pre")
 Events.add_mixin(fn, post_mixin, "post")
