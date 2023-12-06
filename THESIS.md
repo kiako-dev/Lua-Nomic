@@ -14,16 +14,14 @@ This thesis will be broken up into Chapters and Sections as follows:
     1. On the Nature of Scams
     2. What's left to do?
 3. Testing the Limits
-    1. [Agora](https://agoranomic.com) and ???
-    2. [Nomini](https://crowsworth.itch.io/nomini) and Supported Actions
-    3. [Nomyx](https://github.com/nomyx/Nomyx) and Event Based Architecture
+    1. [Nomyx](https://github.com/nomyx/Nomyx) and Event Based Architecture
 4. (Appendix) The Full Codebase
 
 ## Special Thanks
 
 A special thanks to:
 - [Enrique García Cota](https://github.com/kikito), whose [Lua sandbox library](https://github.com/kikito/lua-sandbox) taught me the wonders of `sethook` and alerted me to a number of easily-missed exploits. This Nomic does not recycle code from the above library (at least not intentially), but by construction some similarity must exist.
-- [Chloe Baldwin](https://crowsworth.itch.io/), whose [Nomini Nomic ruleset](https://crowsworth.itch.io/nomini) inspired me to consider a drastically simpler core ruleset. Some key terms have been borrowed from Nomini, and some specific features are recreated in **4.2**.
+- [Chloe Baldwin](https://crowsworth.itch.io/), whose [Nomini Nomic ruleset](https://crowsworth.itch.io/nomini) inspired me to consider a drastically simpler core ruleset. Some key terms have been borrowed from Nomini.
 - (peer reviewers go here)
 
 # Our Goal Ruleset
@@ -36,7 +34,7 @@ Our core ruleset shall be as follows:
 3. A player CAN vote on a motion not yet resolved, specifying "yay", "nay", or nil.
 4. A player CAN resolve a motion by announcement if at least 3 players have voted. If the number of "yay" votes is at least two more than the number of "nay" votes, the code is executed on `GLOBAL` (and so may make significant and permanent changes to the gamestate.)
 
-This is the complete ruleset we will implement in Chapter 2, and is all that is truly necessary for the core game of Nomic. In Chapter 4, we will explore some ways to implement a few of the more complex systems found in Agora, Nomini, and Nomyx.
+This is the complete ruleset we will implement in Chapter 2, and is all that is truly necessary for the core game of Nomic. In Chapter 4, we will explore some ways to implement a few of the more complex systems.
 
 ### Why "yay" and "nay" instead of "for" and "against"?
 
@@ -353,18 +351,14 @@ end
 
 # Testing the Limits
 
-## [Agora](https://agoranomic.com) and Tabled Actions
-
-## [Nomini](https://crowsworth.itch.io/nomini) and ???
-
 ## [Nomyx](https://github.com/nomyx/Nomyx) and Event Based Architecture
 
+From my analysis, it seems the core of Nomyx is in its event-based architecture. Specifically, the ability to subscribe to certain events. The following code provides us two functionalities:
+* The ability to create a 'hook' into a certain function.
+* The ability to 'hook' one function so that it executes before another (and may mutate that function's arguments).
+* The ability to 'hook' one function so that it executes after another.
+
 ```lua
-Events = {}
-Events.hook = {
-  pre = setmetatable({}, {__mode = "k"}),
-  post = setmetatable({}, {__mode = "k"}),
-}
 local function pop_and_pack(...)
   local t = table.pack(...)
   local pop = t[1]
@@ -374,6 +368,14 @@ local function pop_and_pack(...)
   t.n = t.n - 1
   return pop, t
 end
+
+Events = {
+  hook = {
+    pre = setmetatable({}, {__mode = "k"}),
+    post = setmetatable({}, {__mode = "k"}),
+  }
+}
+
 setmetatable(Events.hook, {
   __call = function (self, fn)
     self.pre[fn] = {}
@@ -414,6 +416,7 @@ Example usage:
 local function fn(x)
   print("A: " .. x)
 end
+
 local function pre_mixin(x)
   print("B: " .. x)
   if x < 5 then
@@ -422,6 +425,7 @@ local function pre_mixin(x)
   end
   return false, x - 3
 end
+
 local function post_mixin(x)
   print("C: " .. x)
   return false, x
@@ -430,6 +434,7 @@ end
 fn = Events.hook(fn)
 Events.add_mixin(fn, pre_mixin, "pre")
 Events.add_mixin(fn, post_mixin, "post")
+
 fn(3)
 -- B: 3
 -- Because 3 < 5, we are cancelling the main call.
