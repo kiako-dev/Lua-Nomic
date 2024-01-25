@@ -1,11 +1,9 @@
 # Lua Nomic
 
-In this thesis I hope to outline fully, clearly, and with justification a starting codebase for Lua Nomic, a code Nomic based entirely in Lua.
+In this thesis I hope to outline fully, clearly, and with justification a starting codebase for Lua Nomic, a code Nomic based in Lua.
 
 This thesis will be broken up into Chapters and Sections as follows:
-1. Our Goal Ruleset
-    1. Why "yay" and "nay" instead of "for" and "against"?
-    2. Where are my CFJs?
+1. The Core Ruleset
 2. Designing the Code
     1. Interfacing
     2. Registration and Deregistration
@@ -21,10 +19,9 @@ This thesis will be broken up into Chapters and Sections as follows:
 
 A special thanks to:
 - [Enrique García Cota](https://github.com/kikito), whose [Lua sandbox library](https://github.com/kikito/lua-sandbox) taught me the wonders of `sethook` and alerted me to a number of easily-missed exploits. This Nomic does not recycle code from the above library (at least not intentially), but by construction some similarity must exist.
-- [Chloe Baldwin](https://crowsworth.itch.io/), whose [Nomini Nomic ruleset](https://crowsworth.itch.io/nomini) inspired me to consider a drastically simpler core ruleset. Some key terms have been borrowed from Nomini.
 - (peer reviewers go here)
 
-# Our Goal Ruleset
+# The Core Ruleset
 
 Our core ruleset shall be as follows:
 
@@ -35,35 +32,6 @@ Our core ruleset shall be as follows:
 4. A player CAN resolve a motion by announcement if at least 3 players have voted. If the number of "yay" votes is at least two more than the number of "nay" votes, the code is executed on `GLOBAL` (and so may make significant and permanent changes to the gamestate.)
 
 This is the complete ruleset we will implement in Chapter 2, and is all that is truly necessary for the core game of Nomic. In Chapter 4, we will explore some ways to implement a few of the more complex systems.
-
-### Why "yay" and "nay" instead of "for" and "against"?
-
-In Lua, `for` is what is considered a "keyword". This ends up causing the code to look way worse. We can compare:
-
-```lua
-vote_tallies = {yay=0, nay=0}
--- Note that "for" describes the loop here; this is why it has issues in maps.
-for vote in votes do 
-  if vote == 'yay' then
-    vote_tallies.yay = vote_tallies.yay + 1
-  end
-end
-```
-
-```lua
-vote_tallies = {['for']=0, ['against']=0}
-for vote in votes do
-  if vote == 'for' then
-    vote_tallies['for'] = vote_tallies['for'] + 1
-  end
-end
-```
-
-Plus, "yay" and "nay" are just fun words.
-
-### Where are my CFJs?
-
-Since Lua Nomic is a code nomic, it is _adjudicated by code_. This means, plainly, that success is permission. Therefore, players don't need to CFJ if something was "possible" or "allowed", since the outcome is plainly determined from the gamestate. This is the largest selling point of a code nomic (but changes the nature of scams entirely—we'll discuss this more in Chapter 3).
 
 # Designing the Code
 
@@ -77,7 +45,7 @@ We now must ask:
 
 We will assume the context of a mailing list, as this is most familiar to Agorans. I've turned over in my head a number of methods, including sending data via JSON or another format, designing a DSL (a "domain specific language", a programming language specifically designed for this game), and many much worse formats. 
 
-However, only one format I found to be completely fair to the context (and also not completely outside the scope of the project): if the game operates in code, then players should take their actions through that code. Fortunately for us, Lua offers the very powerful `load` function to turn any text into a function!
+However, only one format I found to be completely fair to the context (and also not completely outside the scope of the project): if the game operates in code, then players should take their actions through that code. Fortunately for us, Lua offers the very powerful `load` function to execute any text!
 
 Thus, our first method:
 
@@ -89,7 +57,7 @@ function accept(message)
   local fn = load(message, nil, 't', _G)
   -- If the message failed to compile, we return early.
   if not fn then return end
-  -- Run the message! (`pcall` prevents errors from happening.)
+  -- Run the message! (`pcall` prevents crashes from happening.)
   pcall(fn)
 end
 ```
@@ -173,7 +141,7 @@ We're just about there! We only have one _teensy_ issue to address: what do we d
 > ```lua
 > while true do end
 > ```
-This wonderful 18-character segment of code runs forever. In fact, there's an infinite family of never-halting code, and it's [provable](https://simple.wikipedia.org/wiki/Halting_problem) that we can't determine which programs will and won't halt. We need another solution.
+This wonderful 18-character segment of code runs forever. In fact, there's an infinite family of never-halting code, and it's [proven](https://simple.wikipedia.org/wiki/Halting_problem) that we can't determine which programs will and won't halt. We need another solution.
 
 Introducing another wonderful tool of the standard Lua library: `sethook`. With this, we can define a function that runs after a certain number of instructions. Let's start by setting this limit arbitrarily high, at about 500,000 instructions. This shouldn't be a problem until much iteration of Lua Nomic, and the implementation means this is easily fixed with a motion.
 
