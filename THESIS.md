@@ -8,9 +8,6 @@ This thesis will be broken up into Chapters and Sections as follows:
     1. Interfacing
     2. Registration and Deregistration
     3. Motions and Resolutions
-3. Speculating and Philosophizing
-    1. On the Nature of Scams
-    2. What's left to do?
 3. Testing the Limits
     1. [Nomyx](https://github.com/nomyx/Nomyx) and Event Based Architecture
 4. (Appendix) The Full Codebase
@@ -310,12 +307,6 @@ function Motions.resolve(id)
   end
 end
 ```
-
-# Speculating and Philosophizing
-
-## On the Nature of Scams
-
-## So what's left to do?
 
 # Testing the Limits
 
