@@ -71,7 +71,7 @@ Now to dive into the most important part: proposals. We'll want to track quite a
 
 ```lua
 -- A helper method to give some structure to proposals.
-function Proposals.new(title, code, comment)
+function Proposals.build(title, code, comment)
   return {
     author = author,
     title = title,
@@ -96,7 +96,7 @@ function Proposals.submit(title, code, comment)
 
   local proposal = Proposals.build(title, code, comment)
   local id = append(Proposals, proposal)
-  print("Motion submitted! Given ID " .. id .. ".")
+  print("Proposal submitted! Given ID " .. id .. ".")
 
   return id
 end
@@ -105,7 +105,7 @@ end
 Now for voting! This will have to do a lot, but we'll break it down into steps. First up is validating the proposal. We'll check that (a) it's actually a proposal, and (b) it hasn't already been resolved.
 ```lua
 function Proposals.vote(id, outcome, comment)
-  local proposal = Motions[id]
+  local proposal = Proposals[id]
   if type(id) != 'number' or proposal == nil then
     error('Unknown proposal #' .. id .. '.')
   end
@@ -170,8 +170,8 @@ Finally, we're going to resolve the proposal and note it as doing so.
   if #counts.yay >= #counts.nay + 2 then
     local fn = load(proposal.code, nil, 't', _G)
     if fn == nil then error('The code failed to compile!') end
-    motion.resolved = datetime()
-    print('Resolving motion #' .. tostring(id) .. '.')
+    proposal.resolved = datetime()
+    print('Resolving proposal #' .. tostring(id) .. '.')
     pcall(fn)
   else
     error("There must be at least 2 more 'yay' votes than 'nay' votes. Currently there are " .. tostring(#counts.yay) " 'yay' votes and " .. tostring(#counts.nay).. " 'nay' votes.")
@@ -365,7 +365,7 @@ function append(table, value)
 end
 
 -- A helper method to give some structure to proposals.
-function Proposals.new(title, code, comment)
+function Proposals.build(title, code, comment)
   return {
     author = author,
     title = title,
@@ -383,13 +383,13 @@ function Proposals.submit(title, code, comment)
 
   local proposal = Proposals.build(title, code, comment)
   local id = append(Proposals, proposal)
-  print("Motion submitted! Given ID " .. id .. ".")
+  print("Proposal submitted! Given ID " .. id .. ".")
 
   return id
 end
 
 function Proposals.vote(id, outcome, comment)
-  local proposal = Motions[id]
+  local proposal = Proposals[id]
   if type(id) != 'number' or proposal == nil then
     error('Unknown proposal #' .. id .. '.')
   end
@@ -435,8 +435,8 @@ function Proposals.resolve(id)
   if #counts.yay >= #counts.nay + 2 then
     local fn = load(proposal.code, nil, 't', _G)
     if fn == nil then error('The code failed to compile!') end
-    motion.resolved = datetime()
-    print('Resolving motion #' .. tostring(id) .. '.')
+    proposal.resolved = datetime()
+    print('Resolving proposal #' .. tostring(id) .. '.')
     pcall(fn)
   else
     error("There must be at least 2 more 'yay' votes than 'nay' votes. Currently there are " .. tostring(#counts.yay) " 'yay' votes and " .. tostring(#counts.nay).. " 'nay' votes.")
