@@ -1,88 +1,260 @@
-# Lua Nomic
+# What's a "nomic"?
 
-In this thesis I hope to outline fully, clearly, and with justification a starting codebase for Lua Nomic, a code Nomic based in Lua.
+For the uninitiated, a nomic is a special sort of social game. The main difference between a nomic and any other sort of game is that, in a Nomic, players can change the rules.
 
-This thesis will be broken up into Chapters and Sections as follows:
-1. The Core Ruleset
-2. Designing the Code
-    1. Interfacing
-    2. Registration and Deregistration
-    3. Motions and Resolutions
-3. Testing the Limits
-    1. [Nomyx](https://github.com/nomyx/Nomyx) and Event Based Architecture
-4. (Appendix) The Full Codebase
+In [Agora Nomic](https://agoranomic.org), the nomic I normally participate in, there's been some off-and-on discussion about pragmatism and platonism, and occasionally it's brought up the idea of a code nomic. The oldest proposed "code-like" nomic in Agora's history would be [favor's "A Completely Formal Nomic"](https://agoranomic.org/Herald/theses/html/XXXX-XX-XX-favor.html), which defines a DSL (a "domain-specific language") to describe game state and game actions. Alexis [later conceptualized a nomic](https://agoranomic.org/Herald/theses/html/2009-11-23-Alexis.html) that used propositional statements to assert the gamestate to be a certain way. Between these two theses existed [PerlNomic](http://odbook.stanford.edu/viewing/filedocument/63), which used Perl to create user interfaces and to manage the gamestate. Finally, there existed [Nomyx](), a Haskell-based nomic with a GUI that saw activity between 2013 and 2017.
 
-## Special Thanks
+In this post, we're going to derive our own nomic, using Lua as the backing language.
 
 A special thanks to:
 - [Enrique García Cota](https://github.com/kikito), whose [Lua sandbox library](https://github.com/kikito/lua-sandbox) taught me the wonders of `sethook` and alerted me to a number of easily-missed exploits. This Nomic does not recycle code from the above library (at least not intentially), but by construction some similarity must exist.
 - (peer reviewers go here)
 
-# The Core Ruleset
+# The Essential Nomic Experience
 
-Our core ruleset shall be as follows:
+In order to be a nomic, we kind of need to be able to alter rules. Specifically, we need to be able to (a) submit a proposal, (b) vote on a proposal, and (c) resolve those proposals. We'll also want (d) a way to keep track of players, and (e) allow players to join and leave.
 
-1. A player CAN register by announcement, specifying an alias. 
-2. A player CAN deregister by announcement.
-2. A player CAN submit a motion by announcement, specifying some plaintext code, and optionally providing a title and a comment. The motion is assigned an ID.
-3. A player CAN vote on a motion not yet resolved, specifying "yay", "nay", or nil.
-4. A player CAN resolve a motion by announcement if at least 3 players have voted. If the number of "yay" votes is at least two more than the number of "nay" votes, the code is executed on `GLOBAL` (and so may make significant and permanent changes to the gamestate.)
+For the sake of organization, let's put all of the proposal information into a single table, and all of the player information into a single table:
+```lua
+Players = {}
+Proposals = {}
+```
 
-This is the complete ruleset we will implement in Chapter 2, and is all that is truly necessary for the core game of Nomic. In Chapter 4, we will explore some ways to implement a few of the more complex systems.
+## Date Time
 
-# Designing the Code
-
-Let's dive in to how to make this concrete.
-
-## Interfacing
-
-We now must ask: 
-
-> How does one actually do something "by announcement"? 
-
-We will assume the context of a mailing list, as this is most familiar to Agorans. I've turned over in my head a number of methods, including sending data via JSON or another format, designing a DSL (a "domain specific language", a programming language specifically designed for this game), and many much worse formats. 
-
-However, only one format I found to be completely fair to the context (and also not completely outside the scope of the project): if the game operates in code, then players should take their actions through that code. Fortunately for us, Lua offers the very powerful `load` function to execute any text!
-
-Thus, our first method:
+As a brief aside, it'll probably be helpful to have some memory of when things happened; y'know, getting a jump on the archival system and all. Let's just define that now.
 
 ```lua
--- [PROTO] This is not the final iteration of this feature!
--- Called by the host, passing in the content of the message received.
-function accept(message)
-  -- Compile the message.
-  local fn = load(message, nil, 't', _G)
-  -- If the message failed to compile, we return early.
-  if not fn then return end
-  -- Run the message! (`pcall` prevents crashes from happening.)
-  pcall(fn)
+function datetime()
+  return os.date() .. " " .. os.time()
 end
 ```
 
-The arguments of `load` are as follows:
-1. The text to turn into a function.
-2. The "source" or name of the function; this is somewhat irrelevant for this project, so we'll leave it as `nil`.
-3. The third argument tells Lua how to read it; `'t'` means it must be text (in oppose to effectively binary ones and zeroes), so that actions cannot be hidden.
-4. The final argument is the environment the action behaves in (think of it as affecting Agora versus affecting Tournaments or Contracts.) `_G` means it applies to the entirety of the system.
+## Joining & Leaving
 
-Now, that's last one's a concern. We don't want a player to be able to do _anything_ with any action, just a few things. Since the solution is a bit more complicated, we'll address another concern first: 
-> How do we determine who's who?
+Alright, let's let players join and leave the game. We're going to assume that there's some global `author` field that our interface can determine uniquely based on who's doing the action. We can worry about how that's done later.
 
-We'll go with the simplest option: the host determines who the author is, and simply tells us. We then set a global variable to keep track of it.
+As a nice convenience, we'll store the date using our handy dandy `datetime` function. Despite what I just said, we're also *not* going to put these in the `Players` table, for a couple reasons:
+- We don't yet know what `author` will look like, and it's in theory possible that someone's unique ID is `register` or `deregister` (an odd choice, perhaps, but a choice nonetheless).
+- If we keep the `Players` table pure, we can pretty easily iterate over all the existing players.
+If this system seems unfavorable, perhaps one could propose a new `Registrar` table to hold these functions as well as the list of players?
 
 ```lua
--- [PROTO] This is not the final iteration fo this feature!
--- Called by the host, passing in the content of the message received, and a unique identifier for the author.
+function register(alias)
+  -- We create a table holding the alias because we can do some goofy things with memory management later.
+  Players[author] = {
+    alias=alias,
+    joined=datetime()
+  }
+end
+
+function deregister()
+  -- Players who deregister are lost to history. Perhaps a good thing to change with an early proposal?
+  Players[author] = nil
+end
+```
+
+## Appending to lists?
+
+We're going to be working a lot with automatically-assigned numerical IDs, and those are really nice to just be able to do quickly. Time for our second helper method!
+
+```lua
+-- Appends a value to a table, as if it were a list. Returns the resulting index.
+function append(table, value)
+  table[#table+1] = value
+  return #table
+end
+```
+
+## How about those Proposals?
+
+Now to dive into the most important part: proposals. We'll want to track quite a bit for this, so let's start with a helpful method to create new proposals. The stuff we're storing should make a lot of sense, given what we know. Just to make it explicit, the `title` is what we call the proposal, the `code` is what would be executed, and `comment` is a submitter-described comment of what it does or why it's being submitted. We're not adding the proposal directly to the table because we're thinking ahead here. It'll become more obvious when we get to the user interface.
+
+```lua
+-- A helper method to give some structure to proposals.
+function Proposals.new(title, code, comment)
+  return {
+    author = author,
+    title = title,
+    code = code,
+    comment = comment,
+    submitted = datetime(),
+    resolved = false,
+    votes = {}
+  }
+end
+```
+
+Alright, now for some egregiously long code for submitting, voting, and resolving. Starting with submitting, we're doing four things here:
+- We're attempting to precompile the submitted code, since if it doesn't compile it's a waste of time to vote,
+- We're creating the proposal and appending it to our `Proposals` list,
+- We're printing out that the proposal was submitted, and
+- We're returning the ID right away, so that our interface can allow players to vote without a second thought.
+```lua
+function Proposals.submit(title, code, comment)
+  local test_fn = load(code, nil, 't', _G)
+  if not test_fn then error("Could not compile code!") end
+
+  local proposal = Proposals.build(title, code, comment)
+  local id = append(Proposals, proposal)
+  print("Motion submitted! Given ID " .. id .. ".")
+
+  return id
+end
+```
+
+Now for voting! This will have to do a lot, but we'll break it down into steps. First up is validating the proposal. We'll check that (a) it's actually a proposal, and (b) it hasn't already been resolved.
+```lua
+function Proposals.vote(id, outcome, comment)
+  local proposal = Motions[id]
+  if type(id) != 'number' or proposal == nil then
+    error('Unknown proposal #' .. id .. '.')
+  end
+  if proposal.resolved then
+    error('Cannot vote on resolved proposal #' .. id .. '.')
+  end
+```
+
+Now to set the vote. We're going to use that unique author ID to keep things convenient, and we'll also need to clear votes in case someone changed their vote. For my sanity, we're also going to make the eligible outcomes "yay" or "nay", because typing `votes.for[author]` isn't valid and `votes["for"][author]` is obnoxious. Additionally, if players vote `nil` (or any other fals-y Lua value), we'll say they meant to abstain, and if they submit anything else (e.g., an integer, "for", or "against"), we'll give an error.
+```lua
+  if outcome == 'yay' then
+    proposal.votes.yay[author] = comment or '(No comment.)'
+    proposal.votes.nay[author] = nil
+    print("Voted 'yay' on #" .. id .. '.')
+  elseif outcome == 'nay' then
+    proposal.votes.nay[author] = comment or '(No comment.)'
+    proposal.votes.yay[author] = nil
+    print("Voted 'nay' on #" .. id .. '.')
+  elseif not outcome then
+    proposal.votes.yay[author] = nil
+    proposal.votes.nay[author] = nil
+    print("Voted 'nil' on #" .. id .. '.')
+  else
+    error("Unrecognized ballot '" .. outcome .. "'.")
+  end
+end
+```
+Currently, this won't save comments for players choosing to abstain. Perhaps that's something to change with a proposal?
+
+Finally, for resolutions. Once again, a lot happening, but we'll go through it piecewise. First, we'll make sure it's valid and hasn't already been resolved, same as with voting.
+
+```lua
+function Proposals.resolve(id)
+  local proposal = Proposals[id]
+  if type(id) != 'number' or proposal == nil then
+    error('Unknown proposal #' .. id .. '.')
+  end
+  if proposal.resolved then
+    error('Cannot resolve the already-resolved proposal #' .. id .. '.')
+  end
+```
+
+Now we need to tally votes. For a tiny bit of scam prevention, we're only going to count currently-registered players votes. We're also going to borrow a simplified version of Agora's quorum, and say that a proposal is adopted if and only if 3 or more people voted and and there are two more "yay" votes than "nay".
+
+```lua
+  local counts = { yay={}, nay={} }
+  for player in next, t do
+    if proposal.votes.yay[player] then
+      append(counts.yay, player)
+    elseif proposal.votes.nay[player] then
+      append(counts.nay, player)
+    end
+  end
+  if #counts.yay + #counts.nay < 3 then
+    error('A minimum of 3 votes are required to resolve a proposal. Currently there are ' .. tostring(#counts.yay + #counts.nay) .. ' votes.')
+  end
+```
+
+Finally, we're going to resolve the proposal and note it as doing so.
+
+```lua
+  if #counts.yay >= #counts.nay + 2 then
+    local fn = load(proposal.code, nil, 't', _G)
+    if fn == nil then error('The code failed to compile!') end
+    motion.resolved = datetime()
+    print('Resolving motion #' .. tostring(id) .. '.')
+    pcall(fn)
+  else
+    error("There must be at least 2 more 'yay' votes than 'nay' votes. Currently there are " .. tostring(#counts.yay) " 'yay' votes and " .. tostring(#counts.nay).. " 'nay' votes.")
+  end
+end
+```
+
+And huzzah! We've got a nomic! Well, almost...
+
+# The Player Interface?
+
+Okay, so we've got the core of the nomic, but players still need to be able to *do* things. Looking back at our predecessors, it seems our options are:
+1. A structured data language, like JSON, XML, or TOML, like in "A Completely Formal Nomic".
+2. A DSL, like in Nomyx.
+3. A GUI, like in PerlNomic and Nomyx.
+
+Each of these has their own pros and drawbacks, but the biggest drawbacks are (a) expandability, (b) time to learn, and (c) time to implement. We'd ideally like something as powerful as Lua itself, isn't too much trouble to learn, and wouldn't require us to implement a parser or abstract syntax tree.
+
+Say, one thing comes to mind. Why don't we just let players submit Lua code to do their actions? Now, I know what you're saying, "Didn't we just make a whole system that required players to vote to run Lua code? Why would we let people just execute code anyways?" Well, hear me out. There's a whole subset of Lua we haven't touched once, and we're going to use the heck out of it.
+
+## Our Public-Facing Interface
+
+Let's start with what we know. Players need to be able to submit code, and we'll need to be able to uniquely distinguish users. Let's start by defining the basic structure:
+
+```lua
+-- [PROTO] This isn't the final implementation of this function!
 function accept(message, author)
   local fn = load(message, nil, 't', _G)
   if not fn then return end
-  _G.author = author -- Author while running.
+  _G.author = author
   pcall(fn)
-  _G.author = nil -- No author after running.
+  _G.author = nil
+end
+```
+Once again we're kind of cheating. *Something* has to host the Lua instance, so we're handing this off to the implementer to decide how to distinguish. If you're thinking of implementing this, here's a few ideas:
+- If it's a mailing list, consider a salted hash of the email address.
+- If it's a Discord bot, well, Discord already has an authentication system---just use that.
+- If it's a webapp, perhaps there should be a log-in?
+Then, the interface has to just call the `accept` function with the message and author. Stupid, simple!
+
+(Oh yeah, another message to the host: Make sure to override `print` to respond via your chosen medium, so players can actually get feedback!)
+
+Another important thing to note with this is that this function is defined *in Lua*. That means a proposal can change it. It shouldn't change the parameters, though; that's a lot of work for the host, and could just prevent it from working. Be careful!
+
+## Introducing the Sandbox
+
+Okay, now that we've got our baseline figured out, let's see how we can make this safe. Well, first, we should limit what all players can actually interact with. For example, the `debug` table is kind of always a problem for everyone. Conveniently for us, we can just change what table our `load` call is treating as the global environment. Let's define ourselves a `Sandbox` that holds all the state available to the player.
+
+```lua
+Sandbox = {
+  math = math,
+  tostring = tostring,
+  datetime = datetime,
+  register = register,
+  deregister = deregister,
+  Players = Players,
+  Proposals = Proposals
+}
+```
+It might be interesting to note the absent `append` method; the reason for this will become more apparent later.
+
+Now, we just need to update our method as so:
+
+```lua
+-- [PROTO] This isn't the final implementation of this function!
+function accept(message, author)
+  local fn = load(message, nil, 't', Sandbox)
+  if not fn then return end
+  _G.author = author
+  Sandbox.author = author
+  pcall(fn)
+  Sandbox.author = nil
+  _G.author = nil
 end
 ```
 
-Now it's time to figure out that little issue of limiting access to the world. We'll start with the following helper method:
+Looking good, except players can still change tables however they wish. Let's fix that.
+
+## A new helper method: `readonly`!
+
+Alright, let's fix that problem area. Introducing metatables, one of the most powerful features of Lua!
+
 ```lua
 -- Makes any table read-only.
 function readonly(source)
@@ -96,97 +268,85 @@ function readonly(source)
   })
 end
 ```
-`setmetatable` is another very powerful Lua method; it takes a table (in this case, `{}`), and assigns it some special properties:
-- `__index` changes the behavior whenever code reads a value. In this case, it will return a read-only copy of whatever the source table's value was (ignoring the actual table `{}`'s contents.)
-- `__newindex` changes the behavior whenever code writes a value to a new key.
-Since the table `{}` is empty, every key is new, so it always calls `__newindex` (and subsequently errors) when a player tries to change any value.
 
-We can then alter our `accept` method to only allow read-only access to `GLOBAL`:
-
+`setmetatable` changes the behavior for the table. `__index` affects reading values, while `__newindex` affects adding new indeces. Since we're making a new empty table, it's impossible to set an index without `__newindex` being implicitly called and throwing the error. Now let's make that `Sandbox` read-only!
 ```lua
--- [PROTO] This is not the final iteration fo this feature!
--- Called by the host, passing in the content of the message received, and a unique identifier for the author.
-function accept(message, author)
-  local fn = load(message, nil, 't', readonly(_G))
-  if not fn then return end
-  _G.author = author -- Author while running.
-  pcall(fn)
-  _G.author = nil -- No author after running.
-end
-```
-
-Unfortunately our work is not complete: because of the powerful `debug` library, it's trivial to get write access to `GLOBAL`. Users also have access to the filesystem due to the `os` and `file` tables. Very scary. Let's instead define a smaller, lesser environment for users to have access to, without these dangerous features:
-
-```lua
-Sandbox = {}
--- Math functions are generally safe to provide, as long as they can't be overwritten.
-Sandbox.math = math
-Sandbox.tostring = tostring
-
--- [PROTO] This is not the final iteration fo this feature!
--- Called by the host, passing in the content of the message received, and a unique identifier for the author.
+-- [PROTO] This isn't the final implementation of this function!
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
   if not fn then return end
+  _G.author = author
   Sandbox.author = author
   pcall(fn)
   Sandbox.author = nil
+  _G.author = nil
 end
 ```
 
-We're just about there! We only have one _teensy_ issue to address: what do we do about players who submit code such as
-> ```lua
-> while true do end
-> ```
-This wonderful 18-character segment of code runs forever. In fact, there's an infinite family of never-halting code, and it's [proven](https://simple.wikipedia.org/wiki/Halting_problem) that we can't determine which programs will and won't halt. We need another solution.
+Now we've got an immutable state, except for the functions in `Sandbox` that can mutate the state (such as `Proposals.submit` and `Proposals.resolve`.) We're also not making `append` available because it *might* be able to mutate arbitrary tables. It probably won't be able to, but it's not a risk I want to deal with. Once again, a possible proposal to consider?
 
-Introducing another wonderful tool of the standard Lua library: `sethook`. With this, we can define a function that runs after a certain number of instructions. Let's start by setting this limit arbitrarily high, at about 500,000 instructions. This shouldn't be a problem until much iteration of Lua Nomic, and the implementation means this is easily fixed with a motion.
+## The Halting Problem, A Problem No More!
 
+Okay, we've almost got everything. Just need to deal with the trouble makers that submit code like:
+```lua
+while true do end
+```
+But that's not too bad. We just need to solve the Halting Problem. [Easy enough.](https://en.wikipedia.org/wiki/Halting_problem)
+
+Jokes aside, our solution is actually quite simple: All programs halt, if we force them to error after 500,000 instructions.
+
+Time to use a second powerful feature of Lua: `sethook`. With this, we can define a function that runs after a certain number of instructions.
 ```lua
 quota = 500000
 
--- Our error method for when we've used up our operations.
 function over_quota()
-  sethook()
-  error('Exceeded quota: ' .. tostring(quota))
+  sethook() -- clears the hook
+  error('Exceeded quota: ' .. tostring(quota) .. '.')
 end
+```
+Since this is, once again, defined within Lua, it's also quite easy to increase this limit as the systems become more complicated.
 
--- Called by the host, passing in the content of the message received, and a unique identifier for the author.
+Now to add that hook!
+
+```lua
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
   if not fn then return end
+  _G.author = author
   Sandbox.author = author
   sethook(over_quota, '', quota)
   is_ok, errmsg = pcall(fn)
   sethook()
   Sandbox.author = nil
-  -- We're also now printing any errors.
+  _G.author = nil
   if not is_ok then
     print('The message failed to execute correctly:\n  ' .. errmsg)
   end
 end
 ```
+Oh, we're also printing errors now. That's no big deal, though.
 
-(To complete the interface, a mailing list-based implementation should use any `print` statements to generate a reply.)
+# Conclusions
 
-## Registration and Deregistration
+And we're done! Wasn't that fun? And nowhere near as bad. I'll throw a summary of all that wonderful code at the end.
 
-To track registered players, we'll just make a `Players` table.
+If you're planning on running Lua Nomic, you'll need to make sure you do the following:
+- Set up a system to carry messages to Lua via the `accept` method.
+- Return methods with `print`.
+- Don't let the thing crash! Oops!
+- By default, this assumes that players will have a restricted environment, so we're treating `file`/`os`/et cetera are safe. I recommend keeping these features, as it's more interesting for creating historical records and such, but if you don't want to set up the environment, you'll need to look at all of everything that needs to be disabled. A particularly ambitious host might make players have access to a directory that can be viewed from a website subdirectory.
+
+# Appendix: The Codebase!
 
 ```lua
 Players = {}
-Sandbox.Players = {}
-```
+Proposals = {}
 
-Then, the methods to register and deregister:
-
-```lua
 function datetime()
   return os.date() .. " " .. os.time()
 end
-Sandbox.datetime = datetime
 
-function Sandbox.register(alias)
+function register(alias)
   -- We create a table holding the alias because we can do some goofy things with memory management later.
   Players[author] = {
     alias=alias,
@@ -194,23 +354,21 @@ function Sandbox.register(alias)
   }
 end
 
-function Sandbox.deregister()
-  -- Players who deregister are lost to history. Perhaps a good thing to change with an early motion?
+function deregister()
+  -- Players who deregister are lost to history. Perhaps a good thing to change with an early proposal?
   Players[author] = nil
 end
-```
 
-## Motions and Resolutions
+-- Appends a value to a table, as if it were a list. Returns the resulting index.
+function append(table, value)
+  table[#table+1] = value
+  return #table
+end
 
-Now the meat and potatoes of Nomic. We'll start by defining our global table to store motions:
-```lua
-Motions = {}
-Sandbox.Motions = {}
-
--- A helper method to give some structure to motions.
-function Motions.build(title, code, comment)
+-- A helper method to give some structure to proposals.
+function Proposals.new(title, code, comment)
   return {
-    author = Sandbox.author,
+    author = author,
     title = title,
     code = code,
     comment = comment,
@@ -219,85 +377,64 @@ function Motions.build(title, code, comment)
     votes = {}
   }
 end
-```
 
-Since we'll probably want to keep motions in a specific order, we're going to define this helper method:
-
-```lua
--- Appends a value to a table, as if it were a list. Returns the resulting index.
-local function append(table, value)
-  table[#table+1] = value
-  return #table
-end
-```
-
-And the methods to submit, vote, and resolve motions:
-
-```lua
-function Motions.submit(title, code, comment)
-  -- We check for syntax errors.
+function Proposals.submit(title, code, comment)
   local test_fn = load(code, nil, 't', _G)
   if not test_fn then error("Could not compile code!") end
-  -- We add it to the list of Motions.
-  local id = append(Motions, Motions.build(title, code, comment))
+
+  local proposal = Proposals.build(title, code, comment)
+  local id = append(Proposals, proposal)
   print("Motion submitted! Given ID " .. id .. ".")
-  -- We'll return the ID in the same message so players can vote at the same time as submitting.
+
   return id
 end
 
-function Motions.vote(id, outcome, comment)
-  local motion = Motions[id]
-  -- Checking that the motion actually exists.
-  if type(id) != 'number' or motion == nil then
-    error('Unknown motion #' .. id .. '.')
+function Proposals.vote(id, outcome, comment)
+  local proposal = Motions[id]
+  if type(id) != 'number' or proposal == nil then
+    error('Unknown proposal #' .. id .. '.')
   end
-  -- Checking if we've already resolved the motion.
-  if motion.resolved then
-    error('Cannot vote on resolved motion #' .. id .. '.')
+  if proposal.resolved then
+    error('Cannot vote on resolved proposal #' .. id .. '.')
   end
-  -- Set the vote
   if outcome == 'yay' then
-    motion.votes.yay[Sandbox.author] = comment or '(No comment.)'
-    motion.votes.nay[Sandbox.author] = nil
+    proposal.votes.yay[author] = comment or '(No comment.)'
+    proposal.votes.nay[author] = nil
     print("Voted 'yay' on #" .. id .. '.')
   elseif outcome == 'nay' then
-    motion.votes.nay[Sandbox.author] = comment or '(No comment.)'
-    motion.votes.yay[Sandbox.author] = nil
+    proposal.votes.nay[author] = comment or '(No comment.)'
+    proposal.votes.yay[author] = nil
     print("Voted 'nay' on #" .. id .. '.')
   elseif not outcome then
-    motion.votes.yay[Sandbox.author] = nil
-    motion.votes.nay[Sandbox.author] = 
+    proposal.votes.yay[author] = nil
+    proposal.votes.nay[author] = nil
     print("Voted 'nil' on #" .. id .. '.')
   else
     error("Unrecognized ballot '" .. outcome .. "'.")
   end
 end
 
-function Motions.resolve(id)
-  local motion = Motions[id]
-  -- Ensure it's a valid motion.
-  if type(id) != 'number' or motion == nil then
-    error('Unknown motion #' .. id .. '.')
+function Proposals.resolve(id)
+  local proposal = Proposals[id]
+  if type(id) != 'number' or proposal == nil then
+    error('Unknown proposal #' .. id .. '.')
   end
-  -- No re-resolving motions.
-  if motion.resolved then
-    error('Cannot resolve the already-resolved motion #' .. id .. '.')
+  if proposal.resolved then
+    error('Cannot resolve the already-resolved proposal #' .. id .. '.')
   end
-  -- Tally votes.
   local counts = { yay={}, nay={} }
-  for voter in pairs(motion.votes.yay) do
-    append(counts.yay, voter)
+  for player in next, t do
+    if proposal.votes.yay[player] then
+      append(counts.yay, player)
+    elseif proposal.votes.nay[player] then
+      append(counts.nay, player)
+    end
   end
-  for voter in pairs(motion.votes.nay) do
-    append(counts.nay, voter)
-  end
-  -- Ensure at least 3 people voted
   if #counts.yay + #counts.nay < 3 then
-    error('A minimum of 3 votes are required to resolve a motion. Currently there are ' .. tostring(#counts.yay + #counts.nay) .. ' votes.')
+    error('A minimum of 3 votes are required to resolve a proposal. Currently there are ' .. tostring(#counts.yay + #counts.nay) .. ' votes.')
   end
-  -- If there are at least two more 'yay' votes than 'nay' votes, run the code.
   if #counts.yay >= #counts.nay + 2 then
-    local fn = load(motion.code, nil, 't', _G)
+    local fn = load(proposal.code, nil, 't', _G)
     if fn == nil then error('The code failed to compile!') end
     motion.resolved = datetime()
     print('Resolving motion #' .. tostring(id) .. '.')
@@ -306,231 +443,48 @@ function Motions.resolve(id)
     error("There must be at least 2 more 'yay' votes than 'nay' votes. Currently there are " .. tostring(#counts.yay) " 'yay' votes and " .. tostring(#counts.nay).. " 'nay' votes.")
   end
 end
-```
-
-# Testing the Limits
-
-## [Nomyx](https://github.com/nomyx/Nomyx) and Event Based Architecture
-
-From my analysis, it seems the core of Nomyx is in its event-based architecture. Specifically, the ability to subscribe to certain events. The following code provides us two functionalities:
-* The ability to create a 'hook' into a certain function.
-* The ability to 'hook' one function so that it executes before another (and may mutate that function's arguments).
-* The ability to 'hook' one function so that it executes after another.
-
-```lua
-local function pop_and_pack(...)
-  local t = table.pack(...)
-  local pop = t[1]
-  for i = 1, i <= t.n do
-    t[i] = t[i + 1]
-  end
-  t.n = t.n - 1
-  return pop, t
-end
-
-Events = {
-  hook = {
-    pre = setmetatable({}, {__mode = "k"}),
-    post = setmetatable({}, {__mode = "k"}),
-  }
-}
-
-setmetatable(Events.hook, {
-  __call = function (self, fn)
-    self.pre[fn] = {}
-    self.post[fn] = {}
-    return setmetatable({}, {
-      __call = function (self2, ...)
-        local params = table.pack(...)
-        for mixin in pairs(self.pre[self2.raw]) do
-          local cancelled
-          cancelled, params = pop_and_pack(mixin(table.unpack(params, 1, params.n)))
-          if cancelled then return end
-        end
-        self2.raw(params)
-        for mixin in pairs(self.post[self2.raw]) do
-          local cancelled
-          cancelled, params = pop_and_pack(mixin(table.unpack(params, 1, params.n)))
-          if cancelled then return end
-        end
-      end,
-      __index = { raw = fn },
-      __newindex = function (t, k, v) end
-    })
-  end
-})
-
-function Events.add_mixin(hook, handler, pre_or_post)
-  if pre_or_post == "pre" then
-    Events.hook.pre[hook.raw][handler] = true
-  elseif pre_or_post == "post" then
-    Events.hook.post[hook.raw][handler] = true
-  end
-end
-```
-
-Example usage:
-
-```lua
-local function fn(x)
-  print("A: " .. x)
-end
-
-local function pre_mixin(x)
-  print("B: " .. x)
-  if x < 5 then
-    print("Because " .. x .. " < 5, we are cancelling the main call.")
-    return true, nil
-  end
-  return false, x - 3
-end
-
-local function post_mixin(x)
-  print("C: " .. x)
-  return false, x
-end
-
-fn = Events.hook(fn)
-Events.add_mixin(fn, pre_mixin, "pre")
-Events.add_mixin(fn, post_mixin, "post")
-
-fn(3)
--- B: 3
--- Because 3 < 5, we are cancelling the main call.
-fn(6)
--- B: 6
--- A: 3
--- C: 3
-```
-
-# Appendix: The Full Codebase
-
-```lua
-function datetime()
-  return os.date() .. " " .. os.time()
-end
-
-Players = {}
-Motions = {}
 
 Sandbox = {
-  -- Libraries
   math = math,
-  -- Methods
-  type = type,
+  tostring = tostring,
   datetime = datetime,
-  -- Tables
-  Motions = Motions,
+  register = register,
+  deregister = deregister,
   Players = Players,
+  Proposals = Proposals
 }
+
+-- Makes any table read-only.
+function readonly(source)
+  -- Any Lua-native non-table type is immutable.
+  if type(source) != 'table' then
+    return source
+  end
+  return setmetatable({}, {
+    __index = function(t, k) return readonly(source[k]) end,
+    __newindex = function(t, k, v) err('Cannot mutate a read-only table!') end
+  })
+end
 
 quota = 500000
 
--- Error method for when we've used up our operations.
 function over_quota()
-  sethook()
-  error('Exceeded quota: ' .. tostring(quota))
+  sethook() -- clears the hook
+  error('Exceeded quota: ' .. tostring(quota) .. '.')
 end
 
--- Called by the host, passing in the content of the message received, and a unique identifier for the author.
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
   if not fn then return end
+  _G.author = author
   Sandbox.author = author
   sethook(over_quota, '', quota)
   is_ok, errmsg = pcall(fn)
   sethook()
   Sandbox.author = nil
+  _G.author = nil
   if not is_ok then
     print('The message failed to execute correctly:\n  ' .. errmsg)
-  end
-end
-
--- Registers oneself under a specified alias.
-function Sandbox.register(alias)
-  Players[Sandbox.author] = {
-    alias=alias,
-  }
-end
-
--- Deregisters oneself.
-function Sandbox.deregister()
-  Players[Sandbox.author] = nil
-end
-
-local function append(table, value)
-  table[#table+1] = value
-  return #table
-end
-
--- A helper method to give some structure to motions.
-function Motions.build(title, code, comment)
-  return {
-    author = Sandbox.author,
-    title = title,
-    code = code,
-    comment = comment,
-    submitted = datetime(),
-    resolved = false,
-    votes = {}
-  }
-end
-
-function Motions.submit(title, code, comment)
-  local test_fn = load(code, nil, 't', _G)
-  if not test_fn then error("Could not compile code!") end
-  local id = append(Motions, Motions.build(title, code, comment))
-  print("Motion submitted! Given ID " .. id .. ".")
-  return id
-end
-
-function Motions.vote(id, outcome, comment)
-  local motion = Motions[id]
-  if type(id) != 'number' or motion == nil then
-    error("Unknown motion #" .. id .. ".")
-  end
-  if motion.resolved then
-    error("Cannot vote on resolved motion #" .. id .. ".")
-  end
-  if outcome == 'yay' then
-    motion.votes.yay[Sandbox.author] = comment or "(No comment.)"
-    motion.votes.nay[Sandbox.author] = nil
-    print("Voted 'yay' on #" .. id .. '.')
-  elseif outcome == 'nay' then
-    motion.votes.nay[Sandbox.author] = comment or "(No comment.)"
-    motion.votes.yay[Sandbox.author] = nil
-    print("Voted 'nay' on #" .. id .. '.')
-  elseif not outcome then
-    motion.votes.yay[Sandbox.author] = nil
-    motion.votes.nay[Sandbox.author] = nil
-  else
-    error("Unrecognized ballot '" .. outcome .. "'.")
-  end
-end
-
-function Motions.resolve(id)
-  local motion = Motions[id]
-  if type(id) != 'number' or motion == nil then
-    error('Unknown motion #' .. id .. '.')
-  end
-  if motion.resolved then
-    error('Cannot resolve the already-resolved motion #' .. id .. '.')
-  end
-  local counts = { yay={}, nay={} }
-  for voter in pairs(motion.votes.yay) do
-    append(counts.yay, voter)
-  end
-  for voter in pairs(motion.votes.nay) do
-    append(counts.nay, voter)
-  end
-  if #counts.yay + #counts.nay < 3 then
-    error('A minimum of 3 votes are required to resolve a motion. Currently there are ' .. tostring(#counts.yay + #counts.nay) .. ' votes.')
-  end
-  if #counts.yay >= #counts.nay + 2 then
-    local fn = load(motion.code, nil, 't', _G)
-    if fn == nil then error('The code failed to compile!') end
-    motion.resolved = datetime()
-    pcall(fn)
   end
 end
 ```
