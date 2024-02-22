@@ -34,10 +34,9 @@ end
 
 Alright, let's let players join and leave the game. We're going to assume that there's some global `author` field that our interface can determine uniquely based on who's doing the action. We can worry about how that's done later.
 
-As a nice convenience, we'll store the date using our handy dandy `datetime` function. Despite what I just said, we're also *not* going to put these in the `Players` table, for a couple reasons:
+As a nice convenience, we'll store the date using our handy dandy `datetime` function. Also, despite what I just said about the `Players` table holding all the player-related stuff, we're *not* going to put these functions in the `Players` table, for a couple reasons:
 - We don't yet know what `author` will look like, and it's in theory possible that someone's unique ID is `register` or `deregister` (an odd choice, perhaps, but a choice nonetheless).
 - If we keep the `Players` table pure, we can pretty easily iterate over all the existing players.
-If this system seems unfavorable, perhaps one could propose a new `Registrar` table to hold these functions as well as the list of players?
 
 ```lua
 function register(alias)
