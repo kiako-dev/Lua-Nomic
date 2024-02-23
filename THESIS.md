@@ -1,4 +1,6 @@
-# What's a "nomic"?
+# Lua Nomic: An embeddable code nomic in 2^7 lines of code.
+
+## What's a "nomic"?
 
 For the uninitiated, a nomic is a special sort of social game. The main difference between a nomic and any other sort of game is that, in a Nomic, players can change the rules.
 
@@ -10,7 +12,7 @@ A special thanks to:
 - [Enrique García Cota](https://github.com/kikito), whose [Lua sandbox library](https://github.com/kikito/lua-sandbox) taught me the wonders of `sethook` and alerted me to a number of easily-missed exploits. This Nomic does not recycle code from the above library (at least not intentially), but by construction some similarity must exist.
 - (peer reviewers go here)
 
-# The Essential Nomic Experience
+## The Essential Nomic Experience
 
 In order to be a nomic, we kind of need to be able to alter rules. Specifically, we need to be able to (a) submit a proposal, (b) vote on a proposal, and (c) resolve those proposals. We'll also want (d) a way to keep track of players, and (e) allow players to join and leave.
 
@@ -20,7 +22,7 @@ Players = {}
 Proposals = {}
 ```
 
-## Date Time
+### Datetime
 
 As a brief aside, it'll probably be helpful to have some memory of when things happened; y'know, getting a jump on the archival system and all. Let's just define that now.
 
@@ -30,7 +32,7 @@ function datetime()
 end
 ```
 
-## Joining & Leaving
+### Joining & Leaving
 
 Alright, let's let players join and leave the game. We're going to assume that there's some global `author` field that our interface can determine uniquely based on who's doing the action. We can worry about how that's done later.
 
@@ -40,7 +42,6 @@ As a nice convenience, we'll store the date using our handy dandy `datetime` fun
 
 ```lua
 function register(alias)
-  -- We create a table holding the alias because we can do some goofy things with memory management later.
   Players[author] = {
     alias=alias,
     joined=datetime()
@@ -53,7 +54,7 @@ function deregister()
 end
 ```
 
-## Appending to lists?
+### Appending to lists?
 
 We're going to be working a lot with automatically-assigned numerical IDs, and those are really nice to just be able to do quickly. Time for our second helper method!
 
@@ -65,7 +66,7 @@ function append(table, value)
 end
 ```
 
-## How about those Proposals?
+### How about those Proposals?
 
 Now to dive into the most important part: proposals. We'll want to track quite a bit for this, so let's start with a helpful method to create new proposals. The stuff we're storing should make a lot of sense, given what we know. Just to make it explicit, the `title` is what we call the proposal, the `code` is what would be executed, and `comment` is a submitter-described comment of what it does or why it's being submitted. We're not adding the proposal directly to the table because we're thinking ahead here. It'll become more obvious when we get to the user interface.
 
@@ -181,7 +182,7 @@ end
 
 And huzzah! We've got a nomic! Well, almost...
 
-# The Player Interface?
+## The Player Interface?
 
 Okay, so we've got the core of the nomic, but players still need to be able to *do* things. Looking back at our predecessors, it seems our options are:
 1. A structured data language, like JSON, XML, or TOML, like in "A Completely Formal Nomic".
@@ -192,7 +193,7 @@ Each of these has their own pros and drawbacks, but the biggest drawbacks are (a
 
 Say, one thing comes to mind. Why don't we just let players submit Lua code to do their actions? Now, I know what you're saying, "Didn't we just make a whole system that required players to vote to run Lua code? Why would we let people just execute code anyways?" Well, hear me out. There's a whole subset of Lua we haven't touched once, and we're going to use the heck out of it.
 
-## Our Public-Facing Interface
+### Our Public-Facing Interface
 
 Let's start with what we know. Players need to be able to submit code, and we'll need to be able to uniquely distinguish users. Let's start by defining the basic structure:
 
@@ -216,7 +217,7 @@ Then, the interface has to just call the `accept` function with the message and 
 
 Another important thing to note with this is that this function is defined *in Lua*. That means a proposal can change it. It shouldn't change the parameters, though; that's a lot of work for the host, and could just prevent it from working. Be careful!
 
-## Introducing the Sandbox
+### Introducing the Sandbox
 
 Okay, now that we've got our baseline figured out, let's see how we can make this safe. Well, first, we should limit what all players can actually interact with. For example, the `debug` table is kind of always a problem for everyone. Conveniently for us, we can just change what table our `load` call is treating as the global environment. Let's define ourselves a `Sandbox` that holds all the state available to the player.
 
@@ -250,7 +251,7 @@ end
 
 Looking good, except players can still change tables however they wish. Let's fix that.
 
-## A new helper method: `readonly`!
+### A new helper method: `readonly`!
 
 Alright, let's fix that problem area. Introducing metatables, one of the most powerful features of Lua!
 
@@ -284,7 +285,7 @@ end
 
 Now we've got an immutable state, except for the functions in `Sandbox` that can mutate the state (such as `Proposals.submit` and `Proposals.resolve`.) We're also not making `append` available because it *might* be able to mutate arbitrary tables. It probably won't be able to, but it's not a risk I want to deal with. Once again, a possible proposal to consider?
 
-## The Halting Problem, A Problem No More!
+### The Halting Problem, A Problem No More!
 
 Okay, we've almost got everything. Just need to deal with the trouble makers that submit code like:
 ```lua
@@ -325,7 +326,7 @@ end
 ```
 Oh, we're also printing errors now. That's no big deal, though.
 
-# Conclusions
+## Conclusions
 
 And we're done! Wasn't that fun? And nowhere near as bad. I'll throw a summary of all that wonderful code at the end.
 
@@ -335,7 +336,7 @@ If you're planning on running Lua Nomic, you'll need to make sure you do the fol
 - Don't let the thing crash! Oops!
 - By default, this assumes that players will have a restricted environment, so we're treating `file`/`os`/et cetera are safe. I recommend keeping these features, as it's more interesting for creating historical records and such, but if you don't want to set up the environment, you'll need to look at all of everything that needs to be disabled. A particularly ambitious host might make players have access to a directory that can be viewed from a website subdirectory.
 
-# Appendix: The Codebase!
+## Appendix: The Codebase!
 
 ```lua
 Players = {}
@@ -346,7 +347,6 @@ function datetime()
 end
 
 function register(alias)
-  -- We create a table holding the alias because we can do some goofy things with memory management later.
   Players[author] = {
     alias=alias,
     joined=datetime()
@@ -354,17 +354,14 @@ function register(alias)
 end
 
 function deregister()
-  -- Players who deregister are lost to history. Perhaps a good thing to change with an early proposal?
   Players[author] = nil
 end
 
--- Appends a value to a table, as if it were a list. Returns the resulting index.
 function append(table, value)
   table[#table+1] = value
   return #table
 end
 
--- A helper method to give some structure to proposals.
 function Proposals.build(title, code, comment)
   return {
     author = author,
@@ -380,11 +377,9 @@ end
 function Proposals.submit(title, code, comment)
   local test_fn = load(code, nil, 't', _G)
   if not test_fn then error("Could not compile code!") end
-
   local proposal = Proposals.build(title, code, comment)
   local id = append(Proposals, proposal)
   print("Proposal submitted! Given ID " .. id .. ".")
-
   return id
 end
 
@@ -453,9 +448,7 @@ Sandbox = {
   Proposals = Proposals
 }
 
--- Makes any table read-only.
 function readonly(source)
-  -- Any Lua-native non-table type is immutable.
   if type(source) != 'table' then
     return source
   end
@@ -468,7 +461,7 @@ end
 quota = 500000
 
 function over_quota()
-  sethook() -- clears the hook
+  sethook()
   error('Exceeded quota: ' .. tostring(quota) .. '.')
 end
 
