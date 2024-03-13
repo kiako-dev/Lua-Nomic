@@ -201,7 +201,7 @@ Let's start with what we know. Players need to be able to submit code, and we'll
 -- [PROTO] This isn't the final implementation of this function!
 function accept(message, author)
   local fn = load(message, nil, 't', _G)
-  if not fn then return end
+  if not fn then print('The message could not be compiled.') return end
   _G.author = author
   pcall(fn)
   _G.author = nil
@@ -240,7 +240,7 @@ Now, we just need to update our method as so:
 -- [PROTO] This isn't the final implementation of this function!
 function accept(message, author)
   local fn = load(message, nil, 't', Sandbox)
-  if not fn then return end
+  if not fn then print('The message could not be compiled.') return end
   _G.author = author
   Sandbox.author = author
   pcall(fn)
@@ -274,7 +274,7 @@ end
 -- [PROTO] This isn't the final implementation of this function!
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
-  if not fn then return end
+  if not fn then print('The message could not be compiled.') return end
   _G.author = author
   Sandbox.author = author
   pcall(fn)
@@ -311,7 +311,7 @@ Now to add that hook!
 ```lua
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
-  if not fn then return end
+  if not fn then print('The message could not be compiled.') return end
   _G.author = author
   Sandbox.author = author
   debug.sethook(over_quota, '', quota)
@@ -467,7 +467,7 @@ end
 
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
-  if not fn then return end
+  if not fn then print('The message could not be compiled.') return end
   _G.author = author
   Sandbox.author = author
   debug.sethook(over_quota, '', quota)
