@@ -107,7 +107,7 @@ Now for voting! This will have to do a lot, but we'll break it down into steps. 
 ```lua
 function Proposals.vote(id, outcome, comment)
   local proposal = Proposals[id]
-  if type(id) != 'number' or proposal == nil then
+  if type(id) ~= 'number' or proposal == nil then
     error('Unknown proposal #' .. id .. '.')
   end
   if proposal.resolved then
@@ -141,7 +141,7 @@ Finally, for resolutions. Once again, a lot happening, but we'll go through it p
 ```lua
 function Proposals.resolve(id)
   local proposal = Proposals[id]
-  if type(id) != 'number' or proposal == nil then
+  if type(id) ~= 'number' or proposal == nil then
     error('Unknown proposal #' .. id .. '.')
   end
   if proposal.resolved then
@@ -259,7 +259,7 @@ Alright, let's fix that problem area. Introducing metatables, one of the most po
 -- Makes any table read-only.
 function readonly(source)
   -- Any Lua-native non-table type is immutable.
-  if type(source) != 'table' then
+  if type(source) ~= 'table' then
     return source
   end
   return setmetatable({}, {
@@ -385,7 +385,7 @@ end
 
 function Proposals.vote(id, outcome, comment)
   local proposal = Proposals[id]
-  if type(id) != 'number' or proposal == nil then
+  if type(id) ~= 'number' or proposal == nil then
     error('Unknown proposal #' .. id .. '.')
   end
   if proposal.resolved then
@@ -410,7 +410,7 @@ end
 
 function Proposals.resolve(id)
   local proposal = Proposals[id]
-  if type(id) != 'number' or proposal == nil then
+  if type(id) ~= 'number' or proposal == nil then
     error('Unknown proposal #' .. id .. '.')
   end
   if proposal.resolved then
@@ -449,7 +449,7 @@ Sandbox = {
 }
 
 function readonly(source)
-  if type(source) != 'table' then
+  if type(source) ~= 'table' then
     return source
   end
   return setmetatable({}, {
