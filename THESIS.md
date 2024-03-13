@@ -264,7 +264,7 @@ function readonly(source)
   end
   return setmetatable({}, {
     __index = function(t, k) return readonly(source[k]) end,
-    __newindex = function(t, k, v) err('Cannot mutate a read-only table!') end
+    __newindex = function(t, k, v) error('Cannot mutate a read-only table!') end
   })
 end
 ```
@@ -454,7 +454,7 @@ function readonly(source)
   end
   return setmetatable({}, {
     __index = function(t, k) return readonly(source[k]) end,
-    __newindex = function(t, k, v) err('Cannot mutate a read-only table!') end
+    __newindex = function(t, k, v) error('Cannot mutate a read-only table!') end
   })
 end
 
