@@ -300,7 +300,7 @@ Time to use a second powerful feature of Lua: `sethook`. With this, we can defin
 quota = 500000
 
 function over_quota()
-  sethook() -- clears the hook
+  debug.sethook() -- clears the hook
   error('Exceeded quota: ' .. tostring(quota) .. '.')
 end
 ```
@@ -314,9 +314,9 @@ function accept(message, author)
   if not fn then return end
   _G.author = author
   Sandbox.author = author
-  sethook(over_quota, '', quota)
+  debug.sethook(over_quota, '', quota)
   is_ok, errmsg = pcall(fn)
-  sethook()
+  debug.sethook()
   Sandbox.author = nil
   _G.author = nil
   if not is_ok then
@@ -461,7 +461,7 @@ end
 quota = 500000
 
 function over_quota()
-  sethook()
+  debug.sethook()
   error('Exceeded quota: ' .. tostring(quota) .. '.')
 end
 
@@ -470,9 +470,9 @@ function accept(message, author)
   if not fn then return end
   _G.author = author
   Sandbox.author = author
-  sethook(over_quota, '', quota)
+  debug.sethook(over_quota, '', quota)
   is_ok, errmsg = pcall(fn)
-  sethook()
+  debug.sethook()
   Sandbox.author = nil
   _G.author = nil
   if not is_ok then
