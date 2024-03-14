@@ -10,13 +10,14 @@ In this post, we're going to derive our own nomic, using Lua as the backing lang
 
 A special thanks to:
 - [Enrique García Cota](https://github.com/kikito), whose [Lua sandbox library](https://github.com/kikito/lua-sandbox) taught me the wonders of `sethook` and alerted me to a number of easily-missed exploits. This Nomic does not recycle code from the above library (at least not intentially), but by construction some similarity must exist.
-- juan
-- nix
-- (more peer reviewers pending) - (I will also add some nice comments for each of the peer reviewers once I've got a good number of responses :) Thanks again to all the reviewers!!)
+- nix, for being an early reviewer and suggesting I ask for more reviewers.
+- juan, for general code advice, as well as finding a number of issues and a whole unnecessary function.
+- Mercury, for reminding me that comments are helpful and for finding many of the bugs juan found—sorry most of those got sniped from you!
+- (more peer reviewers pending)
 
 ## The Essential Nomic Experience
 
-In order to be a nomic, we kind of need to be able to alter rules. Specifically, we need to be able to (a) submit a proposal, (b) vote on a proposal, and (c) resolve those proposals. We'll also want (d) a way to keep track of players, and (e) allow players to join and leave.
+In order to be a nomic, we kind of need to be able to alter rules. Specifically, we need to be able to (a) submit a proposal, (b) vote on a proposal, and (c) resolve those proposals. We'll also want (d) a way to keep track of players, and (e) to allow players to join and leave.
 
 For the sake of organization, let's put all of the proposal information into a single table, and all of the player information into a single table:
 ```lua
