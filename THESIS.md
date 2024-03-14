@@ -143,7 +143,7 @@ Now we need to tally votes. For a tiny bit of scam prevention, we're only going 
 
 ```lua
   local counts = { yay={}, nay={} }
-  for player in next, t do
+  for player in next, Players do
     if proposal.votes.yay[player] then
       table.insert(counts.yay, player)
     elseif proposal.votes.nay[player] then
@@ -400,7 +400,7 @@ function Proposals.resolve(id)
     error('Cannot resolve the already-resolved proposal #' .. id .. '.')
   end
   local counts = { yay={}, nay={} }
-  for player in next, t do
+  for player in next, Players do
     if proposal.votes.yay[player] then
       table.insert(counts.yay, player)
     elseif proposal.votes.nay[player] then
