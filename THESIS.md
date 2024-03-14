@@ -1,4 +1,4 @@
-# Lua Nomic: An embeddable code nomic in 2^7 lines of code.
+# Lua Nomic: An embeddable code nomic in 126 lines of code.
 
 ## What's a "nomic"?
 
