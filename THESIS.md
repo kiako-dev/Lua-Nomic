@@ -218,6 +218,7 @@ Okay, now that we've got our baseline figured out, let's see how we can make thi
 Sandbox = {
   math = math,
   tostring = tostring,
+  print = print,
   datetime = datetime,
   register = register,
   deregister = deregister,
@@ -441,6 +442,7 @@ end
 Sandbox = {
   math = math,
   tostring = tostring,
+  print = print,
   datetime = datetime,
   register = register,
   deregister = deregister,
