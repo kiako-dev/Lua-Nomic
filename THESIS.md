@@ -10,7 +10,9 @@ In this post, we're going to derive our own nomic, using Lua as the backing lang
 
 A special thanks to:
 - [Enrique García Cota](https://github.com/kikito), whose [Lua sandbox library](https://github.com/kikito/lua-sandbox) taught me the wonders of `sethook` and alerted me to a number of easily-missed exploits. This Nomic does not recycle code from the above library (at least not intentially), but by construction some similarity must exist.
-- (peer reviewers go here)
+- juan
+- nix
+- (more peer reviewers pending) - (I will also add some nice comments for each of the peer reviewers once I've got a good number of responses :) Thanks again to all the reviewers!!)
 
 ## The Essential Nomic Experience
 
@@ -28,13 +30,13 @@ As a brief aside, it'll probably be helpful to have some memory of when things h
 
 ```lua
 function datetime()
-  return os.date() .. " " .. os.time()
+  return os.date("+%Y-%m-%d %H:%M")
 end
 ```
 
 ### Joining & Leaving
 
-Alright, let's let players join and leave the game. We're going to assume that there's some global `author` field that our interface can determine uniquely based on who's doing the action. We can worry about how that's done later.
+Alright, let's let players join and leave the game. We're going to assume that there's some global `author` variable that our interface can determine uniquely based on who's doing the action. We can worry about how that's done later.
 
 As a nice convenience, we'll store the date using our handy dandy `datetime` function. Also, despite what I just said about the `Players` table holding all the player-related stuff, we're *not* going to put these functions in the `Players` table, for a couple reasons:
 - We don't yet know what `author` will look like, and it's in theory possible that someone's unique ID is `register` or `deregister` (an odd choice, perhaps, but a choice nonetheless).
@@ -51,18 +53,6 @@ end
 function deregister()
   -- Players who deregister are lost to history. Perhaps a good thing to change with an early proposal?
   Players[author] = nil
-end
-```
-
-### Appending to lists?
-
-We're going to be working a lot with automatically-assigned numerical IDs, and those are really nice to just be able to do quickly. Time for our second helper method!
-
-```lua
--- Appends a value to a table, as if it were a list. Returns the resulting index.
-function append(table, value)
-  table[#table+1] = value
-  return #table
 end
 ```
 
@@ -96,10 +86,10 @@ function Proposals.submit(title, code, comment)
   if not test_fn then error("Could not compile code!") end
 
   local proposal = Proposals.build(title, code, comment)
-  local id = append(Proposals, proposal)
-  print("Proposal submitted! Given ID " .. id .. ".")
+  table.insert(Proposals, proposal)
+  print("Proposal submitted! Given ID " .. #Proposals .. ".")
 
-  return id
+  return #Proposals
 end
 ```
 
@@ -155,9 +145,9 @@ Now we need to tally votes. For a tiny bit of scam prevention, we're only going 
   local counts = { yay={}, nay={} }
   for player in next, t do
     if proposal.votes.yay[player] then
-      append(counts.yay, player)
+      table.insert(counts.yay, player)
     elseif proposal.votes.nay[player] then
-      append(counts.nay, player)
+      table.insert(counts.nay, player)
     end
   end
   if #counts.yay + #counts.nay < 3 then
@@ -232,8 +222,6 @@ Sandbox = {
   Proposals = Proposals
 }
 ```
-It might be interesting to note the absent `append` method; the reason for this will become more apparent later.
-
 Now, we just need to update our method as so:
 
 ```lua
@@ -283,7 +271,7 @@ function accept(message, author)
 end
 ```
 
-Now we've got an immutable state, except for the functions in `Sandbox` that can mutate the state (such as `Proposals.submit` and `Proposals.resolve`.) We're also not making `append` available because it *might* be able to mutate arbitrary tables. It probably won't be able to, but it's not a risk I want to deal with. Once again, a possible proposal to consider?
+Now we've got an immutable state, except for the functions in `Sandbox` that can mutate the state (such as `Proposals.submit` and `Proposals.resolve`.)
 
 ### The Halting Problem, A Problem No More!
 
@@ -357,11 +345,6 @@ function deregister()
   Players[author] = nil
 end
 
-function append(table, value)
-  table[#table+1] = value
-  return #table
-end
-
 function Proposals.build(title, code, comment)
   return {
     author = author,
@@ -378,9 +361,9 @@ function Proposals.submit(title, code, comment)
   local test_fn = load(code, nil, 't', _G)
   if not test_fn then error("Could not compile code!") end
   local proposal = Proposals.build(title, code, comment)
-  local id = append(Proposals, proposal)
-  print("Proposal submitted! Given ID " .. id .. ".")
-  return id
+  table.insert(Proposals, proposal)
+  print("Proposal submitted! Given ID " .. #Proposals .. ".")
+  return #Proposals
 end
 
 function Proposals.vote(id, outcome, comment)
@@ -419,9 +402,9 @@ function Proposals.resolve(id)
   local counts = { yay={}, nay={} }
   for player in next, t do
     if proposal.votes.yay[player] then
-      append(counts.yay, player)
+      table.insert(counts.yay, player)
     elseif proposal.votes.nay[player] then
-      append(counts.nay, player)
+      table.insert(counts.nay, player)
     end
   end
   if #counts.yay + #counts.nay < 3 then
