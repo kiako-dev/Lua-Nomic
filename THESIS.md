@@ -329,9 +329,9 @@ And we're done! Wasn't that fun? And nowhere near as bad. I'll throw a summary o
 
 If you're planning on running Lua Nomic, you'll need to make sure you do the following:
 - Set up a system to carry messages to Lua via the `accept` method.
-- Return methods with `print`.
+- Return an aggregate of the `print` statements called during execution.
 - Don't let the thing crash! Oops!
-- By default, this assumes that players will have a restricted environment, so we're treating `file`/`os`/et cetera are safe. I recommend keeping these features, as it's more interesting for creating historical records and such, but if you don't want to set up the environment, you'll need to look at all of everything that needs to be disabled. A particularly ambitious host might make players have access to a directory that can be viewed from a website subdirectory.
+- By default, this assumes that players will have a restricted environment, so we're treating `file`/`os`/et cetera are safe. I recommend keeping these features, as it's more interesting for creating historical records and such, but if you don't want to set up the environment, you'll need to look at all of everything that needs to be disabled. A particularly ambitious host might make players have access to a directory that can be viewed from a website.
 
 ## Appendix: The Codebase!
 
