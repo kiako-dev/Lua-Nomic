@@ -191,7 +191,9 @@ Let's start with what we know. Players need to be able to submit code, and we'll
 -- [PROTO] This isn't the final implementation of this function!
 function accept(message, author)
   local fn = load(message, nil, 't', _G)
-  if not fn then print('The message could not be compiled.') return end
+  if not fn then
+    return
+  end
   _G.author = author
   pcall(fn)
   _G.author = nil
@@ -228,7 +230,9 @@ Now, we just need to update our method as so:
 -- [PROTO] This isn't the final implementation of this function!
 function accept(message, author)
   local fn = load(message, nil, 't', Sandbox)
-  if not fn then print('The message could not be compiled.') return end
+  if not fn then
+    return
+  end
   _G.author = author
   Sandbox.author = author
   pcall(fn)
@@ -262,7 +266,9 @@ end
 -- [PROTO] This isn't the final implementation of this function!
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
-  if not fn then print('The message could not be compiled.') return end
+  if not fn then
+    return
+  end
   _G.author = author
   Sandbox.author = author
   pcall(fn)
@@ -299,7 +305,10 @@ Now to add that hook!
 ```lua
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
-  if not fn then print('The message could not be compiled.') return end
+  if not fn then
+    print('The message could not be compiled.')
+    return
+  end
   _G.author = author
   Sandbox.author = author
   debug.sethook(over_quota, '', quota)
@@ -330,10 +339,12 @@ If you're planning on running Lua Nomic, you'll need to make sure you do the fol
 Players = {}
 Proposals = {}
 
+-- Gets the current timestamp as a string.
 function datetime()
-  return os.date() .. " " .. os.time()
+  return os.date("+%Y-%m-%d %H:%M")
 end
 
+-- Registers oneself under a given alias.
 function register(alias)
   Players[author] = {
     alias=alias,
@@ -341,10 +352,12 @@ function register(alias)
   }
 end
 
+-- Deregisters oneself.
 function deregister()
   Players[author] = nil
 end
 
+-- Creates a table with the expected features of a proposal.
 function Proposals.build(title, code, comment)
   return {
     author = author,
@@ -357,6 +370,7 @@ function Proposals.build(title, code, comment)
   }
 end
 
+-- Creates and submits a proposal with the given title, code, and comment. Returns the ID.
 function Proposals.submit(title, code, comment)
   local test_fn = load(code, nil, 't', _G)
   if not test_fn then error("Could not compile code!") end
@@ -366,6 +380,7 @@ function Proposals.submit(title, code, comment)
   return #Proposals
 end
 
+-- Votes a given way on a proposal, with an optional comment.
 function Proposals.vote(id, outcome, comment)
   local proposal = Proposals[id]
   if type(id) ~= 'number' or proposal == nil then
@@ -391,6 +406,7 @@ function Proposals.vote(id, outcome, comment)
   end
 end
 
+-- Resolves a given proposal if it meets the requirements.
 function Proposals.resolve(id)
   local proposal = Proposals[id]
   if type(id) ~= 'number' or proposal == nil then
@@ -431,6 +447,7 @@ Sandbox = {
   Proposals = Proposals
 }
 
+-- Returns a read-only view of an object (usually a table.)
 function readonly(source)
   if type(source) ~= 'table' then
     return source
@@ -443,14 +460,19 @@ end
 
 quota = 500000
 
+-- Use with `debug.sethook()`. Cleans up the hook and throws an error.
 function over_quota()
   debug.sethook()
   error('Exceeded quota: ' .. tostring(quota) .. '.')
 end
 
+-- The main entry point. Accepts a message and an author, and executes it in the sandbox.
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
-  if not fn then print('The message could not be compiled.') return end
+  if not fn then
+    print('The message could not be compiled.')
+    return
+  end
   _G.author = author
   Sandbox.author = author
   debug.sethook(over_quota, '', quota)
