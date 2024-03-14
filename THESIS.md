@@ -1,4 +1,4 @@
-# Lua Nomic: An embeddable code nomic in 126 lines of code.
+# Lua Nomic: An embeddable code nomic in 131 lines of code.
 
 ## What's a "nomic"?
 
@@ -79,7 +79,7 @@ end
 Alright, now for some egregiously long code for submitting, voting, and resolving. Starting with submitting, we're doing four things here:
 - We're attempting to precompile the submitted code, since if it doesn't compile it's a waste of time to vote,
 - We're creating the proposal and appending it to our `Proposals` list,
-- We're printing out that the proposal was submitted, and
+- We're outputting that the proposal was submitted, and
 - We're returning the ID right away, so that our interface can allow players to vote without a second thought.
 ```lua
 function Proposals.submit(title, code, comment)
@@ -88,7 +88,7 @@ function Proposals.submit(title, code, comment)
 
   local proposal = Proposals.build(title, code, comment)
   table.insert(Proposals, proposal)
-  print("Proposal submitted! Given ID " .. #Proposals .. ".")
+  respond("Proposal submitted! Given ID %d.", #Proposals)
 
   return #Proposals
 end
@@ -99,10 +99,10 @@ Now for voting! This will have to do a lot, but we'll break it down into steps. 
 function Proposals.vote(id, outcome, comment)
   local proposal = Proposals[id]
   if type(id) ~= 'number' or proposal == nil then
-    error('Unknown proposal #' .. id .. '.')
+    error(string.format('Unknown proposal #%d.', id))
   end
   if proposal.resolved then
-    error('Cannot vote on resolved proposal #' .. id .. '.')
+    error(string.format('Cannot vote on resolved proposal #%d.', id))
   end
 ```
 
@@ -111,17 +111,17 @@ Now to set the vote. We're going to use that unique author ID to keep things con
   if outcome == 'yay' then
     proposal.votes.yay[author] = comment or '(No comment.)'
     proposal.votes.nay[author] = nil
-    print("Voted 'yay' on #" .. id .. '.')
+    respond("Voted 'yay' on #%d.", id)
   elseif outcome == 'nay' then
     proposal.votes.nay[author] = comment or '(No comment.)'
     proposal.votes.yay[author] = nil
-    print("Voted 'nay' on #" .. id .. '.')
+    respond("Voted 'nay' on #%d.", id)
   elseif not outcome then
     proposal.votes.yay[author] = nil
     proposal.votes.nay[author] = nil
-    print("Voted 'nil' on #" .. id .. '.')
+    respond("Voted 'nil' on #%d.", id)
   else
-    error("Unrecognized ballot '" .. outcome .. "'.")
+    error(string.format("Unrecognized ballot '%s'.", id))
   end
 end
 ```
@@ -133,10 +133,10 @@ Finally, for resolutions. Once again, a lot happening, but we'll go through it p
 function Proposals.resolve(id)
   local proposal = Proposals[id]
   if type(id) ~= 'number' or proposal == nil then
-    error('Unknown proposal #' .. id .. '.')
+    error(string.format('Unknown proposal #%d.', id))
   end
   if proposal.resolved then
-    error('Cannot resolve the already-resolved proposal #' .. id .. '.')
+    error(string.format('Cannot resolve the already-resolved proposal #%d.', id))
   end
 ```
 
@@ -152,7 +152,7 @@ Now we need to tally votes. For a tiny bit of scam prevention, we're only going 
     end
   end
   if #counts.yay + #counts.nay < 3 then
-    error('A minimum of 3 votes are required to resolve a proposal. Currently there are ' .. tostring(#counts.yay + #counts.nay) .. ' votes.')
+    error(string.format('A minimum of 3 votes are required to resolve a proposal. Currently there are %d votes.', #counts.yay + #counts.nay))
   end
 ```
 
@@ -163,10 +163,14 @@ Finally, we're going to resolve the proposal and note it as doing so.
     local fn = load(proposal.code, nil, 't', _G)
     if fn == nil then error('The code failed to compile!') end
     proposal.resolved = datetime()
-    print('Resolving proposal #' .. tostring(id) .. '.')
+    respond('Resolving proposal #%d.', id)
     pcall(fn)
   else
-    error("There must be at least 2 more 'yay' votes than 'nay' votes. Currently there are " .. tostring(#counts.yay) " 'yay' votes and " .. tostring(#counts.nay).. " 'nay' votes.")
+    error(string.format(
+      "There must be at least 2 more 'yay' votes than 'nay' votes. Currently there are %d 'yay' votes and %d 'nay' votes.",
+      #counts.yay,
+      #counts.nay
+    ))
   end
 end
 ```
@@ -206,7 +210,7 @@ Once again we're kind of cheating. *Something* has to host the Lua instance, so 
 - If it's a webapp, perhaps there should be a log-in?
 Then, the interface has to just call the `accept` function with the message and author. Stupid, simple!
 
-(Oh yeah, another message to the host: Make sure to override `print` to respond via your chosen medium, so players can actually get feedback!)
+(Oh yeah, another message to the host: Make sure to define `respond` to respond via your chosen medium, so players can actually get feedback!)
 
 Another important thing to note with this is that this function is defined *in Lua*. That means a proposal can change it. It shouldn't change the parameters, though; that's a lot of work for the host, and could just prevent it from working. Be careful!
 
@@ -218,7 +222,7 @@ Okay, now that we've got our baseline figured out, let's see how we can make thi
 Sandbox = {
   math = math,
   tostring = tostring,
-  print = print,
+  respond = respond,
   datetime = datetime,
   register = register,
   deregister = deregister,
@@ -297,7 +301,7 @@ quota = 500000
 
 function over_quota()
   debug.sethook() -- clears the hook
-  error('Exceeded quota: ' .. tostring(quota) .. '.')
+  error(string.format('Exceeded quota: %d.', quota))
 end
 ```
 Since this is, once again, defined within Lua, it's also quite easy to increase this limit as the systems become more complicated.
@@ -308,7 +312,7 @@ Now to add that hook!
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
   if not fn then
-    print('The message could not be compiled.')
+    respond('The message could not be compiled.')
     return
   end
   _G.author = author
@@ -319,11 +323,11 @@ function accept(message, author)
   Sandbox.author = nil
   _G.author = nil
   if not is_ok then
-    print('The message failed to execute correctly:\n  ' .. errmsg)
+    respond('The message failed to execute correctly:\n  %s', errmsg)
   end
 end
 ```
-Oh, we're also printing errors now. That's no big deal, though.
+Oh, we're also outputting errors now. That's no big deal, though.
 
 ## Conclusions
 
@@ -331,7 +335,7 @@ And we're done! Wasn't that fun? And nowhere near as bad. I'll throw a summary o
 
 If you're planning on running Lua Nomic, you'll need to make sure you do the following:
 - Set up a system to carry messages to Lua via the `accept` method.
-- Return an aggregate of the `print` statements called during execution.
+- Return an aggregate of the `respond` statements called during execution. (We also assume that `respond` is able to do string formatting. If you don't want to do that, you'll need to tweak the code a bit.
 - Don't let the thing crash! Oops!
 - By default, this assumes that players will have a restricted environment, so we're treating `file`/`os`/et cetera are safe. I recommend keeping these features, as it's more interesting for creating historical records and such, but if you don't want to set up the environment, you'll need to look at all of everything that needs to be disabled. A particularly ambitious host might make players have access to a directory that can be viewed from a website.
 
@@ -378,7 +382,7 @@ function Proposals.submit(title, code, comment)
   if not test_fn then error("Could not compile code!") end
   local proposal = Proposals.build(title, code, comment)
   table.insert(Proposals, proposal)
-  print("Proposal submitted! Given ID " .. #Proposals .. ".")
+  respond("Proposal submitted! Given ID %d.", #Proposals)
   return #Proposals
 end
 
@@ -386,25 +390,25 @@ end
 function Proposals.vote(id, outcome, comment)
   local proposal = Proposals[id]
   if type(id) ~= 'number' or proposal == nil then
-    error('Unknown proposal #' .. id .. '.')
+    error(string.format('Unknown proposal #%d.', id))
   end
   if proposal.resolved then
-    error('Cannot vote on resolved proposal #' .. id .. '.')
+    error(string.format('Cannot vote on resolved proposal #%d.', id))
   end
   if outcome == 'yay' then
     proposal.votes.yay[author] = comment or '(No comment.)'
     proposal.votes.nay[author] = nil
-    print("Voted 'yay' on #" .. id .. '.')
+    respond("Voted 'yay' on #%d.", id)
   elseif outcome == 'nay' then
     proposal.votes.nay[author] = comment or '(No comment.)'
     proposal.votes.yay[author] = nil
-    print("Voted 'nay' on #" .. id .. '.')
+    respond("Voted 'nay' on #%d.", id)
   elseif not outcome then
     proposal.votes.yay[author] = nil
     proposal.votes.nay[author] = nil
-    print("Voted 'nil' on #" .. id .. '.')
+    respond("Voted 'nil' on #%d.", id)
   else
-    error("Unrecognized ballot '" .. outcome .. "'.")
+    error(string.format("Unrecognized ballot '%s'.", id))
   end
 end
 
@@ -412,10 +416,10 @@ end
 function Proposals.resolve(id)
   local proposal = Proposals[id]
   if type(id) ~= 'number' or proposal == nil then
-    error('Unknown proposal #' .. id .. '.')
+    error(string.format('Unknown proposal #%d.', id))
   end
   if proposal.resolved then
-    error('Cannot resolve the already-resolved proposal #' .. id .. '.')
+    error(string.format('Cannot resolve the already-resolved proposal #%d.', id))
   end
   local counts = { yay={}, nay={} }
   for player in next, Players do
@@ -426,23 +430,27 @@ function Proposals.resolve(id)
     end
   end
   if #counts.yay + #counts.nay < 3 then
-    error('A minimum of 3 votes are required to resolve a proposal. Currently there are ' .. tostring(#counts.yay + #counts.nay) .. ' votes.')
+    error(string.format('A minimum of 3 votes are required to resolve a proposal. Currently there are %d votes.', #counts.yay + #counts.nay))
   end
   if #counts.yay >= #counts.nay + 2 then
     local fn = load(proposal.code, nil, 't', _G)
     if fn == nil then error('The code failed to compile!') end
     proposal.resolved = datetime()
-    print('Resolving proposal #' .. tostring(id) .. '.')
+    respond('Resolving proposal #%d.', id)
     pcall(fn)
   else
-    error("There must be at least 2 more 'yay' votes than 'nay' votes. Currently there are " .. tostring(#counts.yay) " 'yay' votes and " .. tostring(#counts.nay).. " 'nay' votes.")
+    error(string.format(
+      "There must be at least 2 more 'yay' votes than 'nay' votes. Currently there are %d 'yay' votes and %d 'nay' votes.",
+      #counts.yay,
+      #counts.nay
+    ))
   end
 end
 
 Sandbox = {
   math = math,
   tostring = tostring,
-  print = print,
+  respond = respond,
   datetime = datetime,
   register = register,
   deregister = deregister,
@@ -466,14 +474,14 @@ quota = 500000
 -- Use with `debug.sethook()`. Cleans up the hook and throws an error.
 function over_quota()
   debug.sethook()
-  error('Exceeded quota: ' .. tostring(quota) .. '.')
+  error(string.format('Exceeded quota: %d.', quota))
 end
 
 -- The main entry point. Accepts a message and an author, and executes it in the sandbox.
 function accept(message, author)
   local fn = load(message, nil, 't', readonly(Sandbox))
   if not fn then
-    print('The message could not be compiled.')
+    respond('The message could not be compiled.')
     return
   end
   _G.author = author
@@ -484,7 +492,7 @@ function accept(message, author)
   Sandbox.author = nil
   _G.author = nil
   if not is_ok then
-    print('The message failed to execute correctly:\n  ' .. errmsg)
+    respond('The message failed to execute correctly:\n  %s', errmsg)
   end
 end
 ```
